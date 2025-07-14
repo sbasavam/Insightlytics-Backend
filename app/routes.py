@@ -1,17 +1,21 @@
 from flask import Blueprint, request, jsonify, make_response
+from flask_cors import cross_origin
 from . import db
-from .models import User
+from .models import User, ChartData
 from .auth import hash_password, check_password
 from sqlalchemy import func
+from datetime import datetime, timedelta
+import jwt
+import os
+
+SECRET_KEY = os.environ.get("SECRET_KEY", "fef7c0b0106ae4c4cab8bdf911db754ea8119c7e14a67836e9ac4199d3836eb9")
 
 api = Blueprint("api", __name__, url_prefix="/api")
 
 # -------------------- SIGNUP --------------------
-@api.route("/signup", methods=["POST", "OPTIONS"])
+@api.route("/signup", methods=["POST"])
+@cross_origin()
 def signup():
-    if request.method == "OPTIONS":
-        return handle_options_response()
-
     if not request.is_json:
         return jsonify({"error": "Request must be JSON"}), 400
 
@@ -31,13 +35,10 @@ def signup():
 
     return jsonify({"message": "User registered successfully"}), 201
 
-
 # -------------------- LOGIN --------------------
-@api.route("/login", methods=["POST", "OPTIONS"])
+@api.route("/login", methods=["POST"])
+@cross_origin()
 def login():
-    if request.method == "OPTIONS":
-        return handle_options_response()
-
     if not request.is_json:
         return jsonify({"error": "Request must be JSON"}), 400
 
@@ -51,38 +52,36 @@ def login():
     user = User.query.filter_by(email=email).first()
 
     if user and check_password(password, user.password):
+        token = jwt.encode(
+            {"user_id": user.id, "exp": datetime.utcnow() + timedelta(days=1)},
+            SECRET_KEY,
+            algorithm="HS256"
+        )
         return jsonify({
             "message": "Login successful",
+            "access_token": token,
             "user_id": user.id
         }), 200
 
     return jsonify({"error": "Invalid email or password"}), 401
 
-
-# -------------------- DASHBOARD DATA --------------------
-@api.route("/dashboard-data", methods=["GET"])
-def dashboard_data():
-    user_count = User.query.count()
-    dummy_visits = 1200
-    dummy_signups = user_count
-    dummy_sales = 150
-
-    return jsonify({
-        "stats": {
-            "visits": dummy_visits,
-            "signups": dummy_signups,
-            "sales": dummy_sales,
-        },
-        "chart": {
-            "labels": ["Jan", "Feb", "Mar"],
-            "values": [10, 30, 50]
-        }
-    })
-
-
-# -------------------- GET USER BY ID --------------------
+# -------------------- PROTECTED ROUTE EXAMPLE --------------------
 @api.route("/user/<int:id>", methods=["GET"])
+@cross_origin()
 def get_user(id):
+    token = request.headers.get("Authorization")
+    if not token:
+        return jsonify({"error": "Missing token"}), 401
+
+    try:
+        decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        if decoded.get("user_id") != id:
+            return jsonify({"error": "Unauthorized access"}), 403
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid token"}), 401
+
     user = User.query.get_or_404(id)
     return jsonify({
         "id": user.id,
@@ -90,11 +89,45 @@ def get_user(id):
         "created_at": user.created_at
     })
 
+# -------------------- Other Routes Remain Same --------------------
 
-# -------------------- Handle Preflight --------------------
-def handle_options_response():
-    response = make_response()
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
-    response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    return response, 200
+@api.route("/dashboard-stats", methods=["GET"])
+@cross_origin()
+def dashboard_stats():
+    user_count = User.query.count()
+    new_users = User.query.filter(
+        User.created_at >= datetime.utcnow() - timedelta(days=30)
+    ).count()
+    return jsonify({
+        "views": 721000,
+        "visits": 1200,
+        "new_users": new_users,
+        "active_users": new_users
+    })
+
+@api.route("/user-growth", methods=["GET"])
+@cross_origin()
+def user_growth():
+    data = ChartData.query.filter_by(type="growth").all()
+    return jsonify({
+        "labels": [d.label for d in data],
+        "values": [d.value for d in data]
+    })
+
+@api.route("/traffic-by-device", methods=["GET"])
+@cross_origin()
+def traffic_by_device():
+    data = ChartData.query.filter_by(type="device").all()
+    return jsonify({
+        "labels": [d.label for d in data],
+        "values": [d.value for d in data]
+    })
+
+@api.route("/traffic-by-location", methods=["GET"])
+@cross_origin()
+def traffic_by_location():
+    data = ChartData.query.filter_by(type="location").all()
+    return jsonify({
+        "labels": [d.label for d in data],
+        "values": [d.value for d in data]
+    })

@@ -2,24 +2,18 @@ from . import db
 from datetime import datetime
 
 class User(db.Model):
-    __tablename__ = "users"  # ✅ Match the actual table name
+    __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(256), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-class Visit(db.Model):
-    __tablename__ = "visits"  # ✅
+class ChartData(db.Model):
+    __tablename__ = "chartdata"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    label = db.Column(db.String(100), nullable=False)   # e.g., "Linux", "Mac", "USA"
+    value = db.Column(db.Float, nullable=False)          # e.g., 20000000
+    type = db.Column(db.String(50), nullable=False)      # e.g., "device", "location", "growth"
 
-class Sale(db.Model):
-    __tablename__ = "sales"  # ✅
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
-    amount = db.Column(db.Float, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
