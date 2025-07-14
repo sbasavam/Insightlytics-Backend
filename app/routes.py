@@ -36,7 +36,7 @@ def signup():
     return jsonify({"message": "User registered successfully"}), 201
 
 # -------------------- LOGIN --------------------
-@api.route("/login", methods=["POST"])
+@api.route("/signin", methods=["POST"])
 @cross_origin()
 def login():
     if not request.is_json:
@@ -65,44 +65,18 @@ def login():
 
     return jsonify({"error": "Invalid email or password"}), 401
 
-# -------------------- PROTECTED ROUTE EXAMPLE --------------------
-@api.route("/user/<int:id>", methods=["GET"])
-@cross_origin()
-def get_user(id):
-    token = request.headers.get("Authorization")
-    if not token:
-        return jsonify({"error": "Missing token"}), 401
-
-    try:
-        decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        if decoded.get("user_id") != id:
-            return jsonify({"error": "Unauthorized access"}), 403
-    except jwt.ExpiredSignatureError:
-        return jsonify({"error": "Token expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Invalid token"}), 401
-
-    user = User.query.get_or_404(id)
-    return jsonify({
-        "id": user.id,
-        "email": user.email,
-        "created_at": user.created_at
-    })
 
 # -------------------- Other Routes Remain Same --------------------
 
 @api.route("/dashboard-stats", methods=["GET"])
 @cross_origin()
 def dashboard_stats():
-    user_count = User.query.count()
-    new_users = User.query.filter(
-        User.created_at >= datetime.utcnow() - timedelta(days=30)
-    ).count()
+
     return jsonify({
-        "views": 721000,
-        "visits": 1200,
-        "new_users": new_users,
-        "active_users": new_users
+        "Views": "721K",
+        "Visits": "450K",
+        "New Users": "1,167",
+        "Active Users": "453K"
     })
 
 @api.route("/user-growth", methods=["GET"])
